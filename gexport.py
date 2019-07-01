@@ -27,8 +27,7 @@ def authenticate():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
             creds = flow.run_local_server()
         # Save the credentials for the next run
         with open('token.pickle', 'wb') as token:
@@ -49,13 +48,15 @@ def get_message_data(service, message_id):
         elif header['name'] == 'Date':
             field_date = header['value']
     field_internal_date = email.get('internalDate')
+    field_labels = email.get('labelIds')
+    field_labels = ''.join((separated+',' for separated in field_labels if field_labels))[:-1]
     is_attachment = False
     if email['payload'].get('parts'):
         attachments = list(filter(lambda x: x.get('filename'), email['payload']['parts']))
         attachments = list(field['filename'] for field in attachments)
         if attachments:
             is_attachment = True
-    return [field_date, field_internal_date, field_from, field_return, field_subject, email.get('sizeEstimate'), is_attachment]
+    return [field_date, field_internal_date, field_labels, field_from, field_return, field_subject, email.get('sizeEstimate'), is_attachment]
 
 
 def messages(service):
@@ -72,6 +73,7 @@ def messages(service):
             for message in results['messages']:
                 export_writer.writerow(get_message_data(service, message['id']))
             print(email_count)
+    return email_count
 
 def main():
     credentials = authenticate()
