@@ -6,6 +6,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 import csv
 
+# TODO: Make it as a Classs
+# TODO: Fix issue when there is no nextPageToken (last page) and it fails
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
@@ -49,7 +51,8 @@ def get_message_data(service, message_id):
             field_date = header['value']
     field_internal_date = email.get('internalDate')
     field_labels = email.get('labelIds')
-    field_labels = ''.join((separated+',' for separated in field_labels if field_labels))[:-1]
+    if field_labels:
+        field_labels = ''.join((separated+',' for separated in field_labels))[:-1]
     is_attachment = False
     if email['payload'].get('parts'):
         attachments = list(filter(lambda x: x.get('filename'), email['payload']['parts']))
@@ -61,9 +64,15 @@ def get_message_data(service, message_id):
 
 def messages(service):
     message_count = 500
-    next_page = ''
+    try:
+        with open('.gexport', mode='r') as state_file:
+            next_page = state_file.read()
+            file_mode = 'a'
+    except FileNotFoundError:
+        next_page = ''
+        file_mode = 'w'
     email_count = 0
-    with open('emails.csv', mode='w', newline='', encoding="utf-8") as export_file:
+    with open('emails.csv', mode=file_mode, newline='', encoding="utf-8") as export_file:
         export_writer = csv.writer(export_file, delimiter=';', quotechar="'", quoting=csv.QUOTE_MINIMAL)
         while message_count == 500:
             results = service.users().messages().list(userId='me', maxResults=500, pageToken=next_page).execute()
@@ -72,7 +81,11 @@ def messages(service):
             next_page = results.get('nextPageToken')
             for message in results['messages']:
                 export_writer.writerow(get_message_data(service, message['id']))
+            with open('.gexport', mode='w') as state_file:
+                state_file.write(next_page)
+                state_file.close()
             print(email_count)
+        os.remove('.gexport')
     return email_count
 
 def main():
